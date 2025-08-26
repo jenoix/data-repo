@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wordle Solver – 5 Cards</title>
+  <style>
+    :root {
+      --bg: #0f1221;
+      --card: #1a1f36;
+      --text: #e9ecf1;
+      --muted: #a8b0c3;
+      --light-grey: #e8eaee;   /* absent */
+      --light-yellow: #fff4b8; /* present */
+      --light-green: #d1f2d1;  /* correct */
+      --ring: #6ea8fe;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(1200px 800px at 70% -10%, #1b2140 0%, #0f1221 60%);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    .wrap {
+      width: min(1100px, 92vw);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: clamp(20px, 3vw, 28px);
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .hint { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: clamp(10px, 2.2vw, 18px);
+    }
+
+    .tile {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-rows: 1fr;
+      align-items: center;
+      min-height: 160px;
+      border-radius: 18px;
+      padding: 16px 14px;
+      background: var(--card);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
+      transition: background-color 140ms ease, transform 120ms ease, box-shadow 120ms ease;
+    }
+    .tile:focus-within {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.32), 0 0 0 3px rgba(110,168,254,0.35);
+    }
+
+    /* Status colors applied to the entire card */
+    .tile.status-absent { background: var(--light-grey); color: #111; }
+    .tile.status-present { background: var(--light-yellow); color: #111; }
+    .tile.status-correct { background: var(--light-green); color: #111; }
+
+    .big-input {
+      grid-column: 1 / 2;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: clamp(56px, 6.5vw, 80px);
+      font-weight: 800;
+      text-transform: uppercase;
+      text-align: center;
+      letter-spacing: 1px;
+      color: inherit;
+      caret-color: var(--ring);
+    }
+
+    .controls {
+      grid-column: 2 / 3;
+      display: grid;
+      gap: 8px;
+      align-content: center;
+      padding-left: 8px;
+    }
+
+    .status-btn {
+      width: 34px; height: 34px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 16px;
+      transition: transform 100ms ease, background 120ms ease, box-shadow 120ms ease;
+      user-select: none;
+    }
+    .status-btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(110,168,254,0.35); }
+    .status-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.14); }
+
+    /* Simple legend */
+    .legend { display:flex; gap:12px; margin-top: 16px; color: var(--muted); font-size: 13px; align-items:center; flex-wrap: wrap;}
+    .badge { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:6px; border:1px solid rgba(0,0,0,0.2); font-size:12px; }
+    .b-grey{ background: var(--light-grey); color:#111; }
+    .b-yellow{ background: var(--light-yellow); color:#111; }
+    .b-green{ background: var(--light-green); color:#111; }
+
+    .footer { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 100ms ease, background 120ms ease, box-shadow 120ms ease;
+    }
+    .btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Wordle Solver – Letter States</h1>
+    <div class="hint">Type one letter per card. Use the side buttons to set its state for your solver: Absent (grey), Present (yellow), or Correct (green).</div>
+
+    <div class="board" id="board">
+      <!-- Five large cards -->
+      <div class="tile" data-index="0">
+        <input class="big-input" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="1" aria-label="Letter 1" />
+        <div class="controls">
+          <button class="status-btn" data-status="absent" title="Absent (Grey)">⬛</button>
+          <button class="status-btn" data-status="present" title="Present (Yellow)">🟨</button>
+          <button class="status-btn" data-status="correct" title="Correct (Green)">🟩</button>
+        </div>
+      </div>
+
+      <div class="tile" data-index="1">
+        <input class="big-input" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="1" aria-label="Letter 2" />
+        <div class="controls">
+          <button class="status-btn" data-status="absent" title="Absent (Grey)">⬛</button>
+          <button class="status-btn" data-status="present" title="Present (Yellow)">🟨</button>
+          <button class="status-btn" data-status="correct" title="Correct (Green)">🟩</button>
+        </div>
+      </div>
+
+      <div class="tile" data-index="2">
+        <input class="big-input" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="1" aria-label="Letter 3" />
+        <div class="controls">
+          <button class="status-btn" data-status="absent" title="Absent (Grey)">⬛</button>
+          <button class="status-btn" data-status="present" title="Present (Yellow)">🟨</button>
+          <button class="status-btn" data-status="correct" title="Correct (Green)">🟩</button>
+        </div>
+      </div>
+
+      <div class="tile" data-index="3">
+        <input class="big-input" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="1" aria-label="Letter 4" />
+        <div class="controls">
+          <button class="status-btn" data-status="absent" title="Absent (Grey)">⬛</button>
+          <button class="status-btn" data-status="present" title="Present (Yellow)">🟨</button>
+          <button class="status-btn" data-status="correct" title="Correct (Green)">🟩</button>
+        </div>
+      </div>
+
+      <div class="tile" data-index="4">
+        <input class="big-input" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="1" aria-label="Letter 5" />
+        <div class="controls">
+          <button class="status-btn" data-status="absent" title="Absent (Grey)">⬛</button>
+          <button class="status-btn" data-status="present" title="Present (Yellow)">🟨</button>
+          <button class="status-btn" data-status="correct" title="Correct (Green)">🟩</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="badge b-grey" title="Absent">⬛</span> Absent
+      <span class="badge b-yellow" title="Present">🟨</span> Present
+      <span class="badge b-green" title="Correct">🟩</span> Correct
+    </div>
+    <br>
+    <div class="wrap">
+        <textarea class="wrap" style="background-color: #1a1f36;color: wheat;font-size: larger;" name="old" id="old" placeholder="Enter chars which are grey before..(seperated by space)"></textarea>
+    </div>
+    <div class="footer">
+        <select style="background-color: #111; color: whitesmoke;" name="wordset" id="wordset">
+            <option value="solutions" selected>Use Wordle Solutions (2309 words)</option>
+            <option value="full">Use Full Word List (19000+ words)</option>
+        </select>
+        <br>
+       
+      <button class="btn" id="clearBtn" title="Clear all letters & states">Clear</button>
+      <button class="btn" id="copyBtn" title="Copy current pattern as JSON">Copy JSON</button>
+      <button class="btn" id="searchBtn" title="Copy current pattern as JSON" onclick="runSearch()">Starting Searcher...</button>
+    </div>
+    <br><br>
+    <h3>Possible Words <span id="totalmatches"></span>: </h3>
+    <h4 id="wordlist"></h4>
+  </div>
+
+  <script>
+    // Utility: clamp to a single uppercase A–Z
+    function sanitizeChar(v) {
+      if (!v) return "";
+      const m = v.match(/[a-z]/i);
+      return m ? m[0].toUpperCase() : "";
+    }
+
+    const board = document.getElementById('board');
+    const tiles = Array.from(board.querySelectorAll('.tile'));
+
+    // Click handlers to set status on a card and change its background
+    tiles.forEach((tile) => {
+      const input = tile.querySelector('.big-input');
+      tile.querySelectorAll('.status-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const status = btn.dataset.status; // absent | present | correct
+          tile.classList.remove('status-absent','status-present','status-correct');
+          tile.classList.add(`status-${status}`);
+          input.focus();
+        });
+      });
+
+      // Keep single uppercase character, auto-advance to next tile
+      input.addEventListener('input', (e) => {
+        const v = sanitizeChar(e.target.value);
+        e.target.value = v;
+        if (v) {
+          const i = Number(tile.dataset.index);
+          const next = tiles[i + 1]?.querySelector('.big-input');
+          if (next) next.focus();
+        }
+      });
+
+      // Backspace to go to previous when empty
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !e.target.value) {
+          const i = Number(tile.dataset.index);
+          const prev = tiles[i - 1]?.querySelector('.big-input');
+          if (prev) prev.focus();
+        }
+        // Number keys to set status quickly: 1=absent, 2=present, 3=correct
+        if (e.key === '1' || e.key === '2' || e.key === '3') {
+          e.preventDefault();
+          const map = { '1': 'absent', '2': 'present', '3': 'correct' };
+          const status = map[e.key];
+          tile.classList.remove('status-absent','status-present','status-correct');
+          tile.classList.add(`status-${status}`);
+        }
+      });
+
+      // Paste up to 5 characters across tiles
+      input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        const letters = (text || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5).split('');
+        const start = Number(tile.dataset.index);
+        letters.forEach((ch, offset) => {
+          const t = tiles[start + offset];
+          if (!t) return;
+          const inp = t.querySelector('.big-input');
+          inp.value = ch;
+        });
+        const nextIndex = Math.min(start + letters.length, 4);
+        tiles[nextIndex].querySelector('.big-input').focus();
+      });
+    });
+
+    // Clear button
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      tiles.forEach(t => {
+        t.classList.remove('status-absent','status-present','status-correct');
+        t.querySelector('.big-input').value = '';
+      });
+      tiles[0].querySelector('.big-input').focus();
+    });
+
+    // Copy button – exports current state as JSON for your solver
+    document.getElementById('copyBtn').addEventListener('click', async () => {
+      const payload = tiles.map(t => ({
+        letter: t.querySelector('.big-input').value || null,
+        status: t.classList.contains('status-correct') ? 'correct'
+              : t.classList.contains('status-present') ? 'present'
+              : t.classList.contains('status-absent') ? 'absent'
+              : null
+      }));
+      const text = JSON.stringify(payload);
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('copyBtn');
+        const old = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => (btn.textContent = old), 900);
+      } catch (_) {
+        alert(text); // fallback
+      }
+    });
+
+    // Focus first input on load
+    window.addEventListener('DOMContentLoaded', () => {
+      tiles[0].querySelector('.big-input').focus();
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.28.2/full/pyodide.js"></script>
+  
+</body>
+
+<script>
+    let pyodide;
+const classes_status = ["status-absent", "status-present", "status-correct"];
+
+async function setup() {
+  pyodide = await loadPyodide();
+  await pyodide.loadPackage("pandas");
+  console.log("Pyodide ready");
+  document.getElementById("searchBtn").innerText = "Search Matches";
+}
+
+setup();
+
+async function runSearch() {
+  const chars = document.getElementsByClassName("tile");
+  let inputdata = [];
+
+  for (const element of chars) {
+    const inputted = element.children[0].value.trim();
+    if (inputted === "") {
+      alert("Please fill all the boxes");
+      return; // stop the whole function
+    }
+
+    if (element.classList.contains(classes_status[0])) {
+      inputdata.push([inputted, "c"]);
+    } else if (element.classList.contains(classes_status[1])) {
+      inputdata.push([inputted, "b"]);
+    } else if (element.classList.contains(classes_status[2])) {
+      inputdata.push([inputted, "a"]);
+    } else {
+      inputdata.push([inputted, "c"]); // default gray
+    }
+  }
+  //get the old chars
+  let olds = document.getElementById("old").value.trim() 
+  // fetch word list in JS (instead of requests inside pyodide)
+  let wordset = document.getElementById("wordset").value
+  if (wordset === "solutions") {
+    var url = "https://raw.githubusercontent.com/jenoix/data-repo/refs/heads/main/wordle_solutions.txt"
+  } else {
+    var url = "https://raw.githubusercontent.com/jenoix/data-repo/refs/heads/main/wordle.txt"
+  }
+  const resp = await fetch(
+    url
+  );
+  const text = await resp.text();
+  const words = text.split(",");
+
+  // pass inputdata + words into Python
+  pyodide.globals.set("inputdata", inputdata);
+  pyodide.globals.set("words", words);
+
+  let matches = await pyodide.runPythonAsync(`
+from pandas import DataFrame as df
+
+data = df([list(x) for x in words])
+old = "${olds}".split(" ")
+data = data[~data.apply(lambda row: any(ch in old for ch in row.values), axis=1)]
+
+for index, (val, cond) in enumerate(inputdata):
+    if cond == 'a':  # exact index
+        data = data[data[index] == val.lower()]
+    elif cond == 'b':  # anywhere in row
+        data = data[data.apply(lambda row: val.lower() in row.values, axis=1)]
+    elif cond == 'c':  # not in row
+        data = data[data.apply(lambda row: val.lower() not in row.values, axis=1)]
+
+matches = ["".join(x) for x in data.values.tolist()]
+matches
+  `);
+document.getElementById("wordlist").innerText = matches.join(", ");
+document.getElementById("totalmatches").innerText = `(${matches.length})`;
+if (matches.length === 0) {
+  document.getElementById("wordlist").innerText = "No matches found! select a different word list?";
+}}
+
+</script>
+</html>
